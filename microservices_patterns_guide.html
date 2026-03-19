@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Microservices Patterns — microservices.io</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090e;--bg2:#0c0f19;--bg3:#111520;--bg4:#161c2c;
+  --border:#1a2035;--border2:#242d48;
+  --text:#c4d4ee;--muted:#4e6080;--faint:#2a3550;
+  --blue:#4a90d9;--cyan:#22d3ee;--green:#34d399;
+  --amber:#fbbf24;--red:#f87171;--purple:#a78bfa;--pink:#f472b6;
+  --teal:#2dd4bf;--orange:#fb923c;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* ── LAYOUT ─────────────────────────────────────── */
+.app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:54px 1fr;height:100vh;grid-template-areas:"hdr hdr" "nav main"}
+@media(max-width:768px){.app{grid-template-columns:1fr;grid-template-rows:54px auto 1fr;grid-template-areas:"hdr" "nav" "main";height:auto}}
+
+/* ── HEADER ─────────────────────────────────────── */
+.hdr{grid-area:hdr;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14px;z-index:20}
+.hdr-brand{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--blue);font-weight:500;text-transform:uppercase;white-space:nowrap}
+.hdr-title{font-size:14px;font-weight:600;color:#dde8ff;flex:1}
+.hdr-source{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap}
+.hdr-source a{color:var(--blue);text-decoration:none}
+.hdr-source a:hover{text-decoration:underline}
+.prog-wrap{display:flex;align-items:center;gap:8px}
+.prog-track{width:120px;height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:2px;transition:width .4s}
+.prog-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;min-width:40px;text-align:right}
+
+/* ── SIDEBAR ─────────────────────────────────────── */
+.nav{grid-area:nav;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.nav::-webkit-scrollbar{width:3px}.nav::-webkit-scrollbar-thumb{background:var(--border2)}
+.nav-group{padding:12px 10px 4px}
+.nav-group-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;padding:0 8px;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.nav-group-lbl::after{content:'';flex:1;height:1px;background:var(--border)}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:7px;cursor:pointer;transition:all .15s;border:1px solid transparent}
+.nav-item:hover{background:var(--bg3)}
+.nav-item.active{background:rgba(74,144,217,.1);border-color:rgba(74,144,217,.25)}
+.nav-item.done .nd{background:var(--green)!important}
+.nav-item.active .nd{box-shadow:0 0 6px currentColor}
+.nd{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:all .2s}
+.nav-lbl{font-size:12px;font-weight:500;color:var(--muted);flex:1;line-height:1.3;transition:color .15s}
+.nav-item.active .nav-lbl{color:#a0c0f0}
+.nav-item.done .nav-lbl{color:#3a8060}
+.nav-item:hover .nav-lbl{color:var(--text)}
+.nav-num{font-family:'DM Mono',monospace;font-size:9px;color:var(--faint);padding:2px 5px;background:var(--bg3);border-radius:3px}
+.nav-item.active .nav-num{background:rgba(74,144,217,.15);color:var(--blue)}
+.nav-div{height:1px;background:var(--border);margin:6px 10px}
+
+/* ── MAIN ─────────────────────────────────────── */
+.main{grid-area:main;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.main::-webkit-scrollbar{width:4px}.main::-webkit-scrollbar-thumb{background:var(--border2)}
+
+.pview{display:none;padding:36px 44px;max-width:900px;animation:fadeUp .28s ease}
+.pview.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){.pview{padding:22px 18px}}
+
+/* ── PATTERN VIEW COMPONENTS ─────────────────────── */
+.ptag{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--blue);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.ptag::before{content:'';width:18px;height:1px;background:var(--blue)}
+.ptitle{font-size:30px;font-weight:700;color:#eaf2ff;line-height:1.1;margin-bottom:10px;letter-spacing:-.4px}
+.psub{font-size:14px;color:var(--muted);line-height:1.65;margin-bottom:24px;max-width:640px}
+.source-link{display:inline-flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);border:1px solid rgba(74,144,217,.3);border-radius:5px;padding:4px 10px;text-decoration:none;margin-bottom:20px;transition:all .15s}
+.source-link:hover{background:rgba(74,144,217,.08);border-color:var(--blue)}
+
+.divider{height:1px;background:var(--border);margin:24px 0}
+
+.sh{font-size:17px;font-weight:700;color:#dde8ff;margin:22px 0 12px;display:flex;align-items:center;gap:10px}
+.sh::after{content:'';flex:1;height:1px;background:var(--border)}
+.ssh{font-family:'DM Mono',monospace;font-size:12px;color:#7090b0;margin:18px 0 8px;letter-spacing:.3px}
+
+/* Pattern image */
+.pimg-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin:14px 0;text-align:center}
+.pimg-wrap img{max-width:100%;height:auto;border-radius:6px;display:block;margin:0 auto}
+.pimg-caption{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:8px;letter-spacing:.5px}
+
+/* Cards */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:12px 0}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;position:relative;overflow:hidden;transition:border-color .2s,transform .15s}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0;transition:opacity .2s}
+.card:hover{border-color:var(--border2);transform:translateY(-1px)}
+.card:hover::before{opacity:1}
+.card.blue::before{background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.card.green::before{background:linear-gradient(90deg,var(--green),var(--teal))}
+.card.amber::before{background:linear-gradient(90deg,var(--amber),var(--orange))}
+.card.purple::before{background:linear-gradient(90deg,var(--purple),var(--pink))}
+.card.red::before{background:linear-gradient(90deg,var(--red),var(--orange))}
+.card.cyan::before{background:linear-gradient(90deg,var(--cyan),var(--blue))}
+.card.teal::before{background:linear-gradient(90deg,var(--teal),var(--green))}
+.card-cat{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px}
+.card-cat.blue{color:var(--blue)}.card-cat.green{color:var(--green)}.card-cat.amber{color:var(--amber)}
+.card-cat.purple{color:var(--purple)}.card-cat.red{color:var(--red)}.card-cat.cyan{color:var(--cyan)}.card-cat.teal{color:var(--teal)}
+.card-title{font-size:14px;font-weight:600;color:#d0e0f8;margin-bottom:7px}
+.card-body{font-size:12.5px;color:var(--muted);line-height:1.6;font-family:'DM Mono',monospace;font-weight:300}
+
+/* Bullets */
+.bullets{display:flex;flex-direction:column;gap:7px;margin:12px 0}
+.bul{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:var(--text);line-height:1.55}
+.bi{width:17px;height:17px;border-radius:50%;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:'DM Mono',monospace}
+.bi.blue{background:rgba(74,144,217,.15);color:var(--blue)}
+.bi.green{background:rgba(52,211,153,.15);color:var(--green)}
+.bi.amber{background:rgba(251,191,36,.15);color:var(--amber)}
+.bi.red{background:rgba(248,113,113,.15);color:var(--red)}
+.bi.purple{background:rgba(167,139,250,.15);color:var(--purple)}
+.bi.cyan{background:rgba(34,211,238,.15);color:var(--cyan)}
+
+/* Callout */
+.callout{border-radius:8px;padding:13px 16px;margin:14px 0;display:flex;gap:11px;align-items:flex-start}
+.callout.info{background:rgba(74,144,217,.07);border:1px solid rgba(74,144,217,.2)}
+.callout.warn{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2)}
+.callout.danger{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2)}
+.callout.success{background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2)}
+.callout-ico{font-size:15px;flex-shrink:0;margin-top:1px}
+.callout-txt{font-size:13px;line-height:1.6}
+.callout.info .callout-txt{color:#80aadc}
+.callout.warn .callout-txt{color:#c8a030}
+.callout.danger .callout-txt{color:#d07070}
+.callout.success .callout-txt{color:#40b880}
+
+/* Table */
+.tbl{width:100%;border-collapse:collapse;margin:12px 0;font-size:12.5px}
+.tbl th{background:var(--bg3);color:var(--blue);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:9px 13px;text-align:left;border-bottom:1px solid var(--border)}
+.tbl td{padding:9px 13px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;line-height:1.5}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+
+/* Tags */
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;margin:2px}
+.tag.blue{background:rgba(74,144,217,.12);color:var(--blue);border:1px solid rgba(74,144,217,.25)}
+.tag.green{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25)}
+.tag.amber{background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.25)}
+.tag.red{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25)}
+.tag.purple{background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.25)}
+.tag.cyan{background:rgba(34,211,238,.12);color:var(--cyan);border:1px solid rgba(34,211,238,.25)}
+
+/* Code */
+.code{background:#050810;border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;padding:14px 16px;margin:12px 0;font-family:'DM Mono',monospace;font-size:11.5px;color:#80aad8;line-height:1.75;overflow-x:auto;white-space:pre}
+.code .cm{color:var(--muted);font-style:italic}
+.code .kw{color:var(--purple)}
+.code .str{color:#86efac}
+.code .num{color:var(--amber)}
+.code .cls{color:var(--cyan)}
+
+/* Diagram box */
+.dbox{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;margin:14px 0;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px;overflow-x:auto}
+.db{background:var(--bg3);border:1px solid var(--border2);border-radius:7px;padding:9px 14px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;text-align:center;white-space:nowrap}
+.db.blue{border-color:rgba(74,144,217,.4);color:#80c0f0;background:rgba(74,144,217,.08)}
+.db.green{border-color:rgba(52,211,153,.4);color:#60d898;background:rgba(52,211,153,.08)}
+.db.amber{border-color:rgba(251,191,36,.4);color:#c8a030;background:rgba(251,191,36,.08)}
+.db.purple{border-color:rgba(167,139,250,.4);color:#b09af8;background:rgba(167,139,250,.08)}
+.db.red{border-color:rgba(248,113,113,.35);color:#d88080;background:rgba(248,113,113,.08)}
+.db.cyan{border-color:rgba(34,211,238,.4);color:#50c8e0;background:rgba(34,211,238,.08)}
+.db.teal{border-color:rgba(45,212,191,.4);color:#40c8b0;background:rgba(45,212,191,.08)}
+.darr{color:var(--muted);font-size:16px;padding:0 6px;line-height:1}
+.dcol{display:flex;flex-direction:column;gap:6px}
+
+/* Patterns index on overview */
+.pattern-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin:12px 0}
+.pcard{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:14px 16px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:10px}
+.pcard:hover{border-color:var(--border2);transform:translateY(-1px)}
+.pcard-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.pcard-info .pcard-name{font-size:13px;font-weight:600;color:#c0d4f0;margin-bottom:3px}
+.pcard-info .pcard-desc{font-size:11px;color:var(--muted);line-height:1.5;font-family:'DM Mono',monospace;font-weight:300}
+
+/* Nav footer */
+.nfooter{display:flex;align-items:center;gap:10px;margin-top:36px;padding-top:22px;border-top:1px solid var(--border)}
+.nbtn{display:flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s;border:1px solid var(--border2);background:var(--bg2);color:var(--text)}
+.nbtn:hover{border-color:var(--blue);color:var(--blue)}
+.nbtn:disabled{opacity:.3;cursor:default}
+.nbtn:disabled:hover{border-color:var(--border2);color:var(--text)}
+.nbtn.primary{background:rgba(74,144,217,.1);border-color:rgba(74,144,217,.35);color:#80b8f0}
+.nbtn.primary:hover{background:rgba(74,144,217,.18);border-color:var(--blue);color:#b0d4ff}
+.ncenter{flex:1;text-align:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-brand">MS · Patterns</div>
+  <div class="hdr-title">Microservices Pattern Language</div>
+  <div class="hdr-source">Source: <a href="https://microservices.io/patterns/" target="_blank">microservices.io</a></div>
+  <div class="prog-wrap">
+    <div class="prog-track"><div class="prog-fill" id="pfill" style="width:0%"></div></div>
+    <div class="prog-lbl" id="plbl">0/44</div>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<nav class="nav" id="sidebar"></nav>
+
+<!-- MAIN -->
+<main class="main" id="main"></main>
+</div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────────
+var GROUPS = [
+  {
+    label:"Overview",
+    color:"#4a90d9",
+    patterns:[
+      {id:"overview", name:"Pattern Language Map", url:"https://microservices.io/patterns/"}
+    ]
+  },
+  {
+    label:"Architectural Style",
+    color:"#a78bfa",
+    patterns:[
+      {id:"monolithic", name:"Monolithic Architecture", url:"https://microservices.io/patterns/monolithic.html"},
+      {id:"microservices", name:"Microservice Architecture", url:"https://microservices.io/patterns/microservices.html"}
+    ]
+  },
+  {
+    label:"Service Boundaries",
+    color:"#22d3ee",
+    patterns:[
+      {id:"decompose-biz", name:"Decompose by Business Capability", url:"https://microservices.io/patterns/decomposition/decompose-by-business-capability.html"},
+      {id:"decompose-sub", name:"Decompose by Subdomain", url:"https://microservices.io/patterns/decomposition/decompose-by-subdomain.html"},
+      {id:"self-contained", name:"Self-contained Service", url:"https://microservices.io/patterns/decomposition/self-contained-service.html"},
+      {id:"service-per-team", name:"Service per Team", url:"https://microservices.io/patterns/decomposition/service-per-team.html"}
+    ]
+  },
+  {
+    label:"Refactoring",
+    color:"#fb923c",
+    patterns:[
+      {id:"strangler", name:"Strangler Application", url:"https://microservices.io/patterns/refactoring/strangler-application.html"},
+      {id:"acl", name:"Anti-corruption Layer", url:"https://microservices.io/patterns/refactoring/anti-corruption-layer.html"}
+    ]
+  },
+  {
+    label:"Data Management",
+    color:"#fbbf24",
+    patterns:[
+      {id:"db-per-service", name:"Database per Service", url:"https://microservices.io/patterns/data/database-per-service.html"},
+      {id:"shared-db", name:"Shared Database", url:"https://microservices.io/patterns/data/shared-database.html"},
+      {id:"saga", name:"Saga", url:"https://microservices.io/patterns/data/saga.html"},
+      {id:"cmd-replica", name:"Command-side Replica", url:"https://microservices.io/patterns/data/command-side-replica.html"},
+      {id:"api-composition", name:"API Composition", url:"https://microservices.io/patterns/data/api-composition.html"},
+      {id:"cqrs", name:"CQRS", url:"https://microservices.io/patterns/data/cqrs.html"},
+      {id:"domain-event", name:"Domain Event", url:"https://microservices.io/patterns/data/domain-event.html"},
+      {id:"event-sourcing", name:"Event Sourcing", url:"https://microservices.io/patterns/data/event-sourcing.html"}
+    ]
+  },
+  {
+    label:"Transactional Messaging",
+    color:"#34d399",
+    patterns:[
+      {id:"outbox", name:"Transactional Outbox", url:"https://microservices.io/patterns/data/transactional-outbox.html"},
+      {id:"log-tailing", name:"Transaction Log Tailing", url:"https://microservices.io/patterns/data/transaction-log-tailing.html"},
+      {id:"polling-publisher", name:"Polling Publisher", url:"https://microservices.io/patterns/data/polling-publisher.html"}
+    ]
+  },
+  {
+    label:"Testing",
+    color:"#2dd4bf",
+    patterns:[
+      {id:"consumer-contract", name:"Consumer-driven Contract Test", url:"https://microservices.io/patterns/testing/service-integration-contract-test.html"},
+      {id:"consumer-side", name:"Consumer-side Contract Test", url:"https://microservices.io/patterns/testing/consumer-side-contract-test.html"},
+      {id:"service-component", name:"Service Component Test", url:"https://microservices.io/patterns/testing/service-component-test.html"}
+    ]
+  },
+  {
+    label:"Deployment",
+    color:"#f472b6",
+    patterns:[
+      {id:"multi-per-host", name:"Multiple Instances per Host", url:"https://microservices.io/patterns/deployment/multiple-services-per-host.html"},
+      {id:"instance-per-host", name:"Service Instance per Host", url:"https://microservices.io/patterns/deployment/single-service-per-host.html"},
+      {id:"instance-per-vm", name:"Service Instance per VM", url:"https://microservices.io/patterns/deployment/service-per-vm.html"},
+      {id:"instance-per-container", name:"Service Instance per Container", url:"https://microservices.io/patterns/deployment/service-per-container.html"},
+      {id:"serverless", name:"Serverless Deployment", url:"https://microservices.io/patterns/deployment/serverless-deployment.html"},
+      {id:"deploy-platform", name:"Service Deployment Platform", url:"https://microservices.io/patterns/deployment/service-deployment-platform.html"}
+    ]
+  },
+  {
+    label:"Cross-cutting Concerns",
+    color:"#a78bfa",
+    patterns:[
+      {id:"chassis", name:"Microservice Chassis", url:"https://microservices.io/patterns/microservice-chassis.html"},
+      {id:"ext-config", name:"Externalized Configuration", url:"https://microservices.io/patterns/externalized-configuration.html"},
+      {id:"service-template", name:"Service Template", url:"https://microservices.io/patterns/service-template.html"}
+    ]
+  },
+  {
+    label:"Communication",
+    color:"#4a90d9",
+    patterns:[
+      {id:"rpi", name:"Remote Procedure Invocation", url:"https://microservices.io/patterns/communication-style/rpi.html"},
+      {id:"messaging", name:"Messaging", url:"https://microservices.io/patterns/communication-style/messaging.html"},
+      {id:"domain-specific", name:"Domain-specific Protocol", url:"https://microservices.io/patterns/communication-style/domain-specific.html"},
+      {id:"idempotent-consumer", name:"Idempotent Consumer", url:"https://microservices.io/patterns/communication-style/idempotent-consumer.html"}
+    ]
+  },
+  {
+    label:"External API",
+    color:"#22d3ee",
+    patterns:[
+      {id:"api-gateway", name:"API Gateway", url:"https://microservices.io/patterns/apigateway.html"},
+      {id:"bff", name:"Backend for Frontend (BFF)", url:"https://microservices.io/patterns/apigateway.html"}
+    ]
+  },
+  {
+    label:"Service Discovery",
+    color:"#fb923c",
+    patterns:[
+      {id:"client-discovery", name:"Client-side Discovery", url:"https://microservices.io/patterns/client-side-discovery.html"},
+      {id:"server-discovery", name:"Server-side Discovery", url:"https://microservices.io/patterns/server-side-discovery.html"},
+      {id:"service-registry", name:"Service Registry", url:"https://microservices.io/patterns/service-registry.html"},
+      {id:"self-registration", name:"Self Registration", url:"https://microservices.io/patterns/self-registration.html"},
+      {id:"3rd-party-reg", name:"3rd Party Registration", url:"https://microservices.io/patterns/3rd-party-registration.html"}
+    ]
+  },
+  {
+    label:"Reliability",
+    color:"#f87171",
+    patterns:[
+      {id:"circuit-breaker", name:"Circuit Breaker", url:"https://microservices.io/patterns/reliability/circuit-breaker.html"}
+    ]
+  },
+  {
+    label:"Security",
+    color:"#34d399",
+    patterns:[
+      {id:"access-token", name:"Access Token", url:"https://microservices.io/patterns/security/access-token.html"}
+    ]
+  },
+  {
+    label:"Observability",
+    color:"#2dd4bf",
+    patterns:[
+      {id:"log-agg", name:"Log Aggregation", url:"https://microservices.io/patterns/observability/application-logging.html"},
+      {id:"app-metrics", name:"Application Metrics", url:"https://microservices.io/patterns/observability/application-metrics.html"},
+      {id:"audit-log", name:"Audit Logging", url:"https://microservices.io/patterns/observability/audit-logging.html"},
+      {id:"dist-tracing", name:"Distributed Tracing", url:"https://microservices.io/patterns/observability/distributed-tracing.html"},
+      {id:"exception-tracking", name:"Exception Tracking", url:"https://microservices.io/patterns/observability/exception-tracking.html"},
+      {id:"health-check", name:"Health Check API", url:"https://microservices.io/patterns/observability/health-check-api.html"},
+      {id:"log-deploy", name:"Log Deployments & Changes", url:"https://microservices.io/patterns/observability/log-deployments-and-changes.html"}
+    ]
+  },
+  {
+    label:"UI Patterns",
+    color:"#f472b6",
+    patterns:[
+      {id:"server-fragment", name:"Server-side Page Fragment Composition", url:"https://microservices.io/patterns/ui/server-side-page-fragment-composition.html"},
+      {id:"client-ui", name:"Client-side UI Composition", url:"https://microservices.io/patterns/ui/client-side-ui-composition.html"}
+    ]
+  }
+];
+
+// ── PATTERN CONTENT ─────────────────────────────────────────────────
+var CONTENT = {
+"overview":{
+  tag:"microservices.io · Pattern Language",
+  title:"Microservices Pattern Language",
+  subtitle:"A complete pattern language from Chris Richardson at microservices.io — covering all challenges you face when building microservices-based applications.",
+  img:"https://microservices.io/i/MicroservicePatternLanguage.jpg",
+  imgCaption:"Full pattern language diagram from microservices.io (click to open source)",
+  imgLink:"https://microservices.io/i/MicroservicePatternLanguage.pdf",
+  content:`<div class="sh">What is a Pattern Language?</div>
+  <p style="color:var(--muted);font-size:14px;line-height:1.65;margin-bottom:16px">A pattern language is a structured collection of patterns that work together to solve recurring problems in a specific domain. Chris Richardson's pattern language for microservices covers every major decision you face — from architecture choice to deployment, data management, and observability.</p>
+  <div class="callout info"><span class="callout-ico">📖</span><span class="callout-txt"><strong>Source:</strong> All patterns in this guide come directly from <a href="https://microservices.io/patterns/" target="_blank" style="color:var(--blue)">microservices.io</a>, created by Chris Richardson, author of <em>Microservices Patterns</em> (Manning).</span></div>
+  <div class="sh">Pattern Categories</div>
+  <div class="pattern-grid">
+    <div class="pcard" onclick="gotoById('monolithic')"><div class="pcard-dot" style="background:#a78bfa"></div><div class="pcard-info"><div class="pcard-name">Architectural Style</div><div class="pcard-desc">Monolith vs Microservice architecture choice</div></div></div>
+    <div class="pcard" onclick="gotoById('decompose-biz')"><div class="pcard-dot" style="background:#22d3ee"></div><div class="pcard-info"><div class="pcard-name">Service Boundaries</div><div class="pcard-desc">How to decompose an application into services</div></div></div>
+    <div class="pcard" onclick="gotoById('strangler')"><div class="pcard-dot" style="background:#fb923c"></div><div class="pcard-info"><div class="pcard-name">Refactoring</div><div class="pcard-desc">Migrating from monolith to microservices</div></div></div>
+    <div class="pcard" onclick="gotoById('saga')"><div class="pcard-dot" style="background:#fbbf24"></div><div class="pcard-info"><div class="pcard-name">Data Management</div><div class="pcard-desc">Database per service, Saga, CQRS, Event Sourcing</div></div></div>
+    <div class="pcard" onclick="gotoById('outbox')"><div class="pcard-dot" style="background:#34d399"></div><div class="pcard-info"><div class="pcard-name">Transactional Messaging</div><div class="pcard-desc">Outbox, log tailing, polling publisher</div></div></div>
+    <div class="pcard" onclick="gotoById('api-gateway')"><div class="pcard-dot" style="background:#22d3ee"></div><div class="pcard-info"><div class="pcard-name">External API</div><div class="pcard-desc">API Gateway and Backend for Frontend</div></div></div>
+    <div class="pcard" onclick="gotoById('client-discovery')"><div class="pcard-dot" style="background:#fb923c"></div><div class="pcard-info"><div class="pcard-name">Service Discovery</div><div class="pcard-desc">How services find each other at runtime</div></div></div>
+    <div class="pcard" onclick="gotoById('circuit-breaker')"><div class="pcard-dot" style="background:#f87171"></div><div class="pcard-info"><div class="pcard-name">Reliability</div><div class="pcard-desc">Circuit Breaker to prevent cascading failures</div></div></div>
+    <div class="pcard" onclick="gotoById('log-agg')"><div class="pcard-dot" style="background:#2dd4bf"></div><div class="pcard-info"><div class="pcard-name">Observability</div><div class="pcard-desc">Logging, metrics, tracing, health checks</div></div></div>
+    <div class="pcard" onclick="gotoById('instance-per-container')"><div class="pcard-dot" style="background:#f472b6"></div><div class="pcard-info"><div class="pcard-name">Deployment</div><div class="pcard-desc">Service instance strategies and platforms</div></div></div>
+  </div>`
+},
+"monolithic":{
+  tag:"Architectural Style · Pattern 1",
+  title:"Monolithic Architecture",
+  subtitle:"Structure an application as a single deployable unit. All components run in the same process. The starting point for most applications — and the alternative to microservices.",
+  url:"https://microservices.io/patterns/monolithic.html",
+  content:`<div class="sh">Structure</div>
+  <div class="dbox"><div class="db blue" style="padding:20px 30px;font-size:12px">Monolithic Application<br><span style="opacity:.5;font-size:9px">All features in one deployable unit</span></div></div>
+  <div class="sh">When to Choose</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Small team (1–5 engineers) starting a new application</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Simple domain with low complexity and few business capabilities</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Need to iterate quickly without infrastructure overhead</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Tight ACID transaction requirements across the whole application</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Avoid when team grows large — coordination overhead kills velocity</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Avoid when different parts need to scale at dramatically different rates</span></div>
+  </div>
+  <div class="sh">Benefits & Drawbacks</div>
+  <table class="tbl"><thead><tr><th>Benefit</th><th>Drawback</th></tr></thead><tbody>
+    <tr><td>Simple to develop and deploy initially</td><td>Becomes large and complex over time</td></tr>
+    <tr><td>Easy to test end-to-end</td><td>Continuous deployment becomes risky</td></tr>
+    <tr><td>No distributed system complexity</td><td>Scaling requires scaling everything</td></tr>
+    <tr><td>No latency between components</td><td>Tech stack locked for the whole app</td></tr>
+  </tbody></table>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt">Don't start with microservices. Build a modular monolith first. Only migrate to microservices when you have clear pain points and understand your domain boundaries well.</span></div>`
+},
+"microservices":{
+  tag:"Architectural Style · Pattern 2",
+  title:"Microservice Architecture",
+  subtitle:"Structure an application as a collection of independently deployable, loosely coupled services organised around business capabilities. Each service has its own database and is owned by a small team.",
+  url:"https://microservices.io/patterns/microservices.html",
+  img:"https://microservices.io/i/Microservice_Architecture.png",
+  imgCaption:"Microservice architecture — multiple services, each with its own database",
+  content:`<div class="sh">Key Properties</div>
+  <div class="card-grid">
+    <div class="card blue"><div class="card-cat blue">Principle</div><div class="card-title">Loose Coupling</div><div class="card-body">Services communicate only via well-defined APIs. No shared databases, no direct function calls.</div></div>
+    <div class="card green"><div class="card-cat green">Principle</div><div class="card-title">High Cohesion</div><div class="card-body">Each service owns a single business capability end-to-end. Code that changes together lives together.</div></div>
+    <div class="card amber"><div class="card-cat amber">Ownership</div><div class="card-title">Team Autonomy</div><div class="card-body">One team owns one service — build, deploy, operate, and on-call. Full lifecycle ownership.</div></div>
+    <div class="card purple"><div class="card-cat purple">Technology</div><div class="card-title">Polyglot Stack</div><div class="card-body">Each service can use the best language, database, and framework for its specific requirements.</div></div>
+  </div>
+  <div class="sh">Enabling Conditions</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span>You have identified stable, well-understood Bounded Contexts from your domain model</span></div>
+    <div class="bul"><div class="bi blue">2</div><span>Teams are large enough (5+ engineers per service) to justify separate deployment pipelines</span></div>
+    <div class="bul"><div class="bi blue">3</div><span>You need different services to scale independently based on load characteristics</span></div>
+    <div class="bul"><div class="bi blue">4</div><span>You have DevOps capability to operate many independently deployed services</span></div>
+  </div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">Conway's Law: "Organizations design systems that mirror their communication structure." Align service boundaries to team boundaries — the architecture will follow naturally.</span></div>`
+},
+"decompose-biz":{
+  tag:"Service Boundaries · Pattern 3",
+  title:"Decompose by Business Capability",
+  subtitle:"Define services corresponding to business capabilities — what the business does to generate value, not how the technology is structured.",
+  url:"https://microservices.io/patterns/decomposition/decompose-by-business-capability.html",
+  content:`<div class="sh">What is a Business Capability?</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">A business capability is a concept from business architecture. It is something that a business does in order to generate value — e.g. Order Management, Inventory Management, Customer Management.</p>
+  <div class="sh">Example: E-commerce Capabilities → Services</div>
+  <div class="card-grid">
+    <div class="card blue"><div class="card-cat blue">Capability</div><div class="card-title">Order Management</div><div class="card-body">→ Order Service<br>Create, update, track orders</div></div>
+    <div class="card green"><div class="card-cat green">Capability</div><div class="card-title">Inventory Management</div><div class="card-body">→ Inventory Service<br>Track stock levels, reservations</div></div>
+    <div class="card amber"><div class="card-cat amber">Capability</div><div class="card-title">Customer Management</div><div class="card-body">→ Customer Service<br>Profiles, credit limits, history</div></div>
+    <div class="card purple"><div class="card-cat purple">Capability</div><div class="card-title">Payment Processing</div><div class="card-body">→ Payment Service<br>Charge, refund, reconcile</div></div>
+  </div>
+  <div class="sh">Benefits</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Stable decomposition — business capabilities rarely change even as business grows</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Services aligned to teams — one team per capability (Conway's Law alignment)</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Cohesive services — all code for a capability lives in one service</span></div>
+  </div>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt"><strong>God Classes:</strong> Some classes like "Account" or "User" are used by many capabilities. Decomposing these across services requires careful DDD analysis — each context gets its own limited view of the entity.</span></div>`
+},
+"decompose-sub":{
+  tag:"Service Boundaries · Pattern 4",
+  title:"Decompose by Subdomain",
+  subtitle:"Use Domain-Driven Design (DDD) subdomains to define service boundaries. Each service corresponds to one DDD subdomain with its own Bounded Context.",
+  url:"https://microservices.io/patterns/decomposition/decompose-by-subdomain.html",
+  content:`<div class="sh">DDD Subdomain Types</div>
+  <table class="tbl"><thead><tr><th>Type</th><th>Definition</th><th>Strategy</th><th>Example</th></tr></thead><tbody>
+    <tr><td><span class="tag blue">Core</span></td><td>Competitive differentiator</td><td>Build custom, invest heavily</td><td>Recommendation engine, fraud detection</td></tr>
+    <tr><td><span class="tag amber">Supporting</span></td><td>Supports core, not differentiating</td><td>Build simply or outsource</td><td>Order management, inventory</td></tr>
+    <tr><td><span class="tag purple">Generic</span></td><td>Commodity functionality</td><td>Use off-the-shelf or SaaS</td><td>Email, authentication, payments</td></tr>
+  </tbody></table>
+  <div class="sh">Bounded Contexts</div>
+  <div class="callout info"><span class="callout-ico">📐</span><span class="callout-txt">A <strong>Bounded Context</strong> is the explicit boundary within which a domain model is defined and applies. "Customer" means something different in Sales (prospect with contact info) vs Shipping (address to deliver to). Each gets its own service.</span></div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span>Identify subdomains by analysing the business and its processes</span></div>
+    <div class="bul"><div class="bi blue">2</div><span>Define Bounded Contexts — explicit boundaries for each model</span></div>
+    <div class="bul"><div class="bi blue">3</div><span>Map each Bounded Context to a microservice (usually 1:1)</span></div>
+    <div class="bul"><div class="bi blue">4</div><span>Use Anti-corruption Layers between contexts to translate models</span></div>
+  </div>`
+},
+"self-contained":{
+  tag:"Service Boundaries · Pattern 5",
+  title:"Self-contained Service",
+  subtitle:"Design services to handle synchronous requests without waiting for other services to respond. Reduces runtime coupling and improves availability.",
+  url:"https://microservices.io/patterns/decomposition/self-contained-service.html",
+  content:`<div class="sh">The Problem</div>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt">If Service A must call Service B to handle a request, then A's availability is limited by B's availability. If B is slow or down, A is slow or down too.</span></div>
+  <div class="sh">Solution Approaches</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span><strong>Command-side replica:</strong> Replicate data from other services into a local read model so no synchronous calls are needed</span></div>
+    <div class="bul"><div class="bi blue">2</div><span><strong>Event-driven design:</strong> Consume events from other services to maintain local state needed for handling requests</span></div>
+    <div class="bul"><div class="bi blue">3</div><span><strong>Accept stale data:</strong> Use locally cached data that may be slightly behind — acceptable for most non-critical reads</span></div>
+  </div>
+  <div class="callout success"><span class="callout-ico">✅</span><span class="callout-txt">A self-contained service can handle requests even when other services are down. This dramatically improves overall system availability.</span></div>`
+},
+"service-per-team":{
+  tag:"Service Boundaries · Pattern 6",
+  title:"Service per Team",
+  subtitle:"Each team owns one or more services exclusively. Team boundaries and service boundaries are aligned. Enables independent development and deployment.",
+  url:"https://microservices.io/patterns/decomposition/service-per-team.html",
+  content:`<div class="sh">Conway's Law in Practice</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">"Any organization that designs a system will produce a design whose structure is a copy of the organization's communication structure." — Melvin Conway</p>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Each team owns their services end-to-end: design, build, test, deploy, operate</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Team's API is the service's public API — designed for external consumption</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Teams can release independently without coordinating with other teams</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Each team chooses their own tech stack and release cadence</span></div>
+  </div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">The "two-pizza team" rule: a team small enough to be fed by two pizzas (5–8 people) can own one service effectively. Larger services are owned by larger teams but with clear sub-team boundaries.</span></div>`
+},
+"strangler":{
+  tag:"Refactoring · Pattern 7",
+  title:"Strangler Application",
+  subtitle:"Incrementally migrate a monolith to microservices by gradually routing functionality to new services. The new system strangles the old one over time.",
+  url:"https://microservices.io/patterns/refactoring/strangler-application.html",
+  content:`<div class="sh">The Strangler Fig Pattern</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">Named after the strangler fig tree, which grows around a host tree and eventually replaces it. New microservices grow around the monolith until the monolith can be removed.</p>
+  <div class="dbox" style="flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="db blue">Client</div><div class="darr">→</div>
+      <div class="db green" style="min-width:100px">Strangler Façade<br><span style="font-size:9px;opacity:.6">(reverse proxy)</span></div>
+      <div class="darr">→</div>
+      <div class="dcol">
+        <div class="db red">Legacy Monolith<br><span style="font-size:9px;opacity:.6">shrinking over time</span></div>
+        <div class="db teal">New Microservice A<br><span style="font-size:9px;opacity:.6">extracted feature</span></div>
+        <div class="db teal">New Microservice B<br><span style="font-size:9px;opacity:.6">extracted feature</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sh">Migration Steps</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span>Deploy a façade (reverse proxy) in front of the monolith — initially routes all traffic to it</span></div>
+    <div class="bul"><div class="bi blue">2</div><span>Identify one feature or business capability to extract first</span></div>
+    <div class="bul"><div class="bi blue">3</div><span>Build the new microservice in isolation with its own database</span></div>
+    <div class="bul"><div class="bi blue">4</div><span>Route traffic for that feature from façade to new service</span></div>
+    <div class="bul"><div class="bi blue">5</div><span>Remove the feature from the monolith — repeat until monolith is empty</span></div>
+  </div>
+  <div class="callout success"><span class="callout-ico">✅</span><span class="callout-txt">No big-bang rewrites. The system stays running throughout migration. Each extraction can be validated independently. Risk is distributed across many small migrations.</span></div>`
+},
+"acl":{
+  tag:"Refactoring · Pattern 8",
+  title:"Anti-corruption Layer",
+  subtitle:"A translation layer between a new microservice and a legacy system (or another service with a different domain model). Prevents the legacy model from polluting the new model.",
+  url:"https://microservices.io/patterns/refactoring/anti-corruption-layer.html",
+  content:`<div class="sh">Why It's Needed</div>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt">When integrating with legacy systems, their data models are often messy, poorly named, or fundamentally different. Without a translation layer, the legacy model leaks into your clean domain model.</span></div>
+  <div class="dbox">
+    <div class="db green">New Service<br><span style="font-size:9px;opacity:.6">Clean domain model</span></div>
+    <div class="darr">→</div>
+    <div class="db blue">Anti-corruption Layer<br><span style="font-size:9px;opacity:.6">translates models</span></div>
+    <div class="darr">→</div>
+    <div class="db red">Legacy System<br><span style="font-size:9px;opacity:.6">messy old model</span></div>
+  </div>
+  <div class="sh">Responsibilities</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Translate legacy data structures and naming to the new domain model</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Isolate the new service from changes in the legacy system's API</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Handle protocol differences (SOAP → REST, XML → JSON)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Implement any data validation and enrichment required</span></div>
+  </div>`
+},
+"db-per-service":{
+  tag:"Data Management · Pattern 9",
+  title:"Database per Service",
+  subtitle:"Each microservice has its own private database. No other service can access it directly — data sharing happens only through the service's API.",
+  url:"https://microservices.io/patterns/data/database-per-service.html",
+  img:"https://microservices.io/i/databaseperservice.png",
+  imgCaption:"Each service owns its private database — polyglot persistence enabled",
+  content:`<div class="sh">The Core Rule</div>
+  <div class="callout danger"><span class="callout-ico">🚫</span><span class="callout-txt"><strong>Never share a database between services.</strong> If two services share a schema, they are tightly coupled. A schema change in one breaks the other. Independent deployment becomes impossible.</span></div>
+  <div class="sh">Polyglot Persistence</div>
+  <div class="card-grid">
+    <div class="card blue"><div class="card-cat blue">PostgreSQL</div><div class="card-title">Order Service</div><div class="card-body">Relational, ACID transactions, complex joins across order/items tables.</div></div>
+    <div class="card green"><div class="card-cat green">MongoDB</div><div class="card-title">Product Catalog</div><div class="card-body">Flexible schema for varying attributes per product category.</div></div>
+    <div class="card amber"><div class="card-cat amber">Redis</div><div class="card-title">Session Service</div><div class="card-body">In-memory, TTL expiry, microsecond reads for session data.</div></div>
+    <div class="card purple"><div class="card-cat purple">Cassandra</div><div class="card-title">Analytics Service</div><div class="card-body">Wide-column store, massive write throughput, time-series queries.</div></div>
+  </div>
+  <div class="sh">Consequences</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Services are loosely coupled — schema changes affect only the owning service</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Each service can use the best database technology for its specific needs</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Queries across services require API calls — no SQL joins across service boundaries</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Distributed transactions are needed — solved by the Saga pattern</span></div>
+  </div>`
+},
+"shared-db":{
+  tag:"Data Management · Pattern 10 (Anti-pattern)",
+  title:"Shared Database",
+  subtitle:"Multiple services share the same database schema. Listed by microservices.io as an anti-pattern that should generally be avoided in microservices architectures.",
+  url:"https://microservices.io/patterns/data/shared-database.html",
+  content:`<div class="callout danger"><span class="callout-ico">🚫</span><span class="callout-txt"><strong>Anti-pattern warning:</strong> Sharing a database creates tight coupling between services. It directly contradicts the microservices principle of independent deployability.</span></div>
+  <div class="sh">Why It's Problematic</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi red">✗</div><span>Schema changes by one team break other teams' services unexpectedly</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Services cannot use different database technologies for different needs</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>A database-level bug or slowness affects all services simultaneously</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Impossible to deploy services independently if they share tables</span></div>
+  </div>
+  <div class="sh">When It's Acceptable</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi amber">!</div><span>As a short-term transition step during monolith-to-microservices migration</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>When services are owned by the same team and schema coordination is trivial</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Read-only shared reference data (e.g. country codes, currency lists)</span></div>
+  </div>`
+},
+"saga":{
+  tag:"Data Management · Pattern 11",
+  title:"Saga",
+  subtitle:"Implement distributed transactions as a sequence of local transactions, each updating its service's database and publishing events/messages to trigger the next step. Failed steps trigger compensating transactions.",
+  url:"https://microservices.io/patterns/data/saga.html",
+  img:"https://microservices.io/i/sagas/Create_Order_Saga.png",
+  imgCaption:"Choreography-based saga — Order Service, Customer Service coordination via events",
+  content:`<div class="sh">The Problem Sagas Solve</div>
+  <div class="callout info"><span class="callout-ico">📖</span><span class="callout-txt">A business transaction like "Place Order" spans multiple services: create order, reserve inventory, charge payment. Each service has its own DB — you can't use a single ACID transaction. 2PC is not an option in microservices.</span></div>
+  <div class="sh">Two Types of Sagas</div>
+  <div class="ssh">Choreography-based</div>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Each service reacts to events and publishes its own events. No central coordinator.</p>
+  <div class="dbox" style="flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="db blue">Order Service<br><span style="font-size:9px;opacity:.6">publishes OrderCreated</span></div>
+      <div class="darr">→</div>
+      <div class="db green">Inventory Service<br><span style="font-size:9px;opacity:.6">reserves stock → StockReserved</span></div>
+      <div class="darr">→</div>
+      <div class="db amber">Payment Service<br><span style="font-size:9px;opacity:.6">charges → PaymentProcessed</span></div>
+    </div>
+  </div>
+  <div class="ssh">Orchestration-based</div>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:10px">A central orchestrator tells each service what to do via command messages.</p>
+  <div class="dbox">
+    <div class="db blue" style="padding:14px 20px">Create Order<br>Saga Orchestrator</div>
+    <div class="dcol" style="gap:8px;margin-left:12px">
+      <div style="display:flex;align-items:center;gap:6px"><div class="darr">→</div><div class="db green" style="font-size:10px">Reserve Inventory</div></div>
+      <div style="display:flex;align-items:center;gap:6px"><div class="darr">→</div><div class="db amber" style="font-size:10px">Charge Payment</div></div>
+      <div style="display:flex;align-items:center;gap:6px"><div class="darr">→</div><div class="db purple" style="font-size:10px">Send Notification</div></div>
+    </div>
+  </div>
+  <div class="sh">Compensating Transactions</div>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt">If payment fails, the saga must undo the inventory reservation. Compensating transactions must be explicitly designed for every step that can fail.</span></div>
+  <table class="tbl"><thead><tr><th></th><th>Choreography</th><th>Orchestration</th></tr></thead><tbody>
+    <tr><td>Coupling</td><td>Low — event-based</td><td>Higher — orchestrator knows all steps</td></tr>
+    <tr><td>Visibility</td><td>Distributed, hard to trace</td><td>Centralised, easy to monitor</td></tr>
+    <tr><td>Rollback</td><td>Complex compensating event chains</td><td>Orchestrator handles compensation</td></tr>
+    <tr><td>Best for</td><td>Simple 2–3 step flows</td><td>Complex multi-step flows</td></tr>
+  </tbody></table>`
+},
+"cmd-replica":{
+  tag:"Data Management · Pattern 12",
+  title:"Command-side Replica",
+  subtitle:"Maintain a queryable read replica of data from other services within the command-side of a service. Eliminates synchronous calls to other services during command handling.",
+  url:"https://microservices.io/patterns/data/command-side-replica.html",
+  content:`<div class="sh">Problem It Solves</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">When handling a command (e.g. Create Order), the Order Service needs to check the customer's credit limit — owned by the Customer Service. Making a synchronous call to Customer Service creates availability and latency coupling.</p>
+  <div class="dbox">
+    <div class="db blue">Order Service</div>
+    <div class="darr">reads locally</div>
+    <div class="db green">Customer Replica<br><span style="font-size:9px;opacity:.6">local read model</span></div>
+    <div class="darr">←events—</div>
+    <div class="db amber">Customer Service<br><span style="font-size:9px;opacity:.6">publishes events</span></div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Command handling is self-contained — no synchronous calls to other services</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Improves availability — Order Service works even when Customer Service is down</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Replica data may be slightly stale — acceptable for most business rules</span></div>
+  </div>`
+},
+"api-composition":{
+  tag:"Data Management · Pattern 13",
+  title:"API Composition",
+  subtitle:"Implement queries that span multiple services by calling each service's API and joining the results in memory. The simplest approach for multi-service queries.",
+  url:"https://microservices.io/patterns/data/api-composition.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox" style="flex-direction:column;gap:12px">
+    <div class="db blue">API Composer (Gateway or BFF)</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center">
+      <div class="dcol" style="align-items:center">
+        <div class="darr">↓</div>
+        <div class="db green" style="font-size:10px">Order Service</div>
+      </div>
+      <div class="dcol" style="align-items:center">
+        <div class="darr">↓</div>
+        <div class="db amber" style="font-size:10px">Product Service</div>
+      </div>
+      <div class="dcol" style="align-items:center">
+        <div class="darr">↓</div>
+        <div class="db purple" style="font-size:10px">Customer Service</div>
+      </div>
+    </div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">Join results in memory → return single response</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Simple to implement — just make API calls and join results</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Works for most queries without additional infrastructure</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Increased latency from multiple sequential or parallel calls</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Inefficient if only a small subset of the joined data is needed</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Not suitable for complex filtering, sorting, or aggregation across services</span></div>
+  </div>`
+},
+"cqrs":{
+  tag:"Data Management · Pattern 14",
+  title:"CQRS",
+  subtitle:"Command Query Responsibility Segregation — separate the write model (commands) from the read model (queries). Maintain one or more materialised views optimised for querying.",
+  url:"https://microservices.io/patterns/data/cqrs.html",
+  img:"https://microservices.io/i/cqrs.png",
+  imgCaption:"CQRS — separate command and query models with event-driven synchronisation",
+  content:`<div class="sh">Core Concept</div>
+  <div class="dbox" style="flex-direction:column;gap:10px">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
+      <div class="dcol" style="align-items:center;gap:6px">
+        <div class="db red" style="font-size:10px">Write Operation (Command)</div>
+        <div class="darr">↓</div>
+        <div class="db blue">Command Model<br><span style="font-size:9px;opacity:.6">Write DB (normalised)</span></div>
+        <div class="darr">↓ publishes events</div>
+        <div class="db green">View Updater</div>
+        <div class="darr">↓</div>
+        <div class="db teal">Read Model<br><span style="font-size:9px;opacity:.6">View DB (denormalised)</span></div>
+      </div>
+      <div class="dcol" style="align-items:center;gap:6px">
+        <div class="db cyan" style="font-size:10px">Read Operation (Query)</div>
+        <div class="darr">↓ queries</div>
+        <div class="db teal">Read Model</div>
+        <div class="darr">↓</div>
+        <div class="db cyan" style="font-size:10px">Fast response<br><span style="font-size:9px;opacity:.6">no joins needed</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sh">When to Use CQRS</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Query model needs to combine data from multiple aggregates or services</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Read-heavy workloads where read performance must be optimised independently</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Complex queries that would require many joins in a normalised schema</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Adds significant complexity — only justified at scale or for complex query requirements</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Eventual consistency between write and read models — reads may lag writes slightly</span></div>
+  </div>`
+},
+"domain-event":{
+  tag:"Data Management · Pattern 15",
+  title:"Domain Event",
+  subtitle:"Publish an event whenever data changes within a service. Events represent facts that happened in the domain — other services subscribe to react to them.",
+  url:"https://microservices.io/patterns/data/domain-event.html",
+  content:`<div class="sh">What is a Domain Event?</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">A domain event is a representation of something that happened in the domain. It is named in past tense: <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">OrderPlaced</code>, <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">PaymentProcessed</code>, <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">ItemShipped</code>.</p>
+  <div class="code"><span class="cm">// Domain event structure</span>
+{
+  <span class="str">"eventType"</span>: <span class="str">"OrderPlaced"</span>,
+  <span class="str">"eventId"</span>:   <span class="str">"evt-abc123"</span>,
+  <span class="str">"occurred"</span>:  <span class="str">"2025-01-15T10:23:45Z"</span>,
+  <span class="str">"orderId"</span>:   <span class="str">"ord-789"</span>,
+  <span class="str">"customerId"</span>:<span class="str">"cust-456"</span>,
+  <span class="str">"total"</span>:     <span class="num">149.99</span>,
+  <span class="str">"items"</span>:     [...]
+}</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Events enable loose coupling — publisher doesn't know who consumes the event</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>New consumers can be added without modifying the publisher</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Events are immutable facts — never update or delete them</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Include all data consumers need — avoid forcing callbacks for details</span></div>
+  </div>`
+},
+"event-sourcing":{
+  tag:"Data Management · Pattern 16",
+  title:"Event Sourcing",
+  subtitle:"Persist aggregates as a sequence of events rather than current state. The current state is derived by replaying all events. Provides a full audit trail and enables temporal queries.",
+  url:"https://microservices.io/patterns/data/event-sourcing.html",
+  img:"https://microservices.io/i/storingevents.png",
+  imgCaption:"Event sourcing — store events, reconstruct state by replaying them",
+  content:`<div class="sh">Traditional vs Event Sourcing</div>
+  <div class="code"><span class="cm">// Traditional: store current state only</span>
+UPDATE orders SET status=<span class="str">'shipped'</span> WHERE id=<span class="str">'ord-123'</span>
+<span class="cm">// History lost! Was it pending? paid? held?</span>
+
+<span class="cm">// Event Sourcing: store every event</span>
+events: [
+  { type: <span class="str">'OrderPlaced'</span>,   at: <span class="str">'10:00'</span>, data: {...} }
+  { type: <span class="str">'PaymentTaken'</span>,  at: <span class="str">'10:01'</span>, data: {...} }
+  { type: <span class="str">'OrderShipped'</span>,  at: <span class="str">'10:45'</span>, data: {...} }
+]
+<span class="cm">// Current state = reduce(events, applyEvent, initialState)</span></div>
+  <div class="sh">Benefits & Drawbacks</div>
+  <table class="tbl"><thead><tr><th>Benefit</th><th>Drawback</th></tr></thead><tbody>
+    <tr><td>Full audit trail of every change</td><td>Querying state requires replaying events (use CQRS)</td></tr>
+    <tr><td>Time travel: state at any past moment</td><td>Steep learning curve</td></tr>
+    <tr><td>Publish events reliably (no dual write)</td><td>Event schema evolution is complex</td></tr>
+    <tr><td>Debugging via event replay</td><td>Eventual consistency for read models</td></tr>
+  </tbody></table>`
+},
+"outbox":{
+  tag:"Transactional Messaging · Pattern 17",
+  title:"Transactional Outbox",
+  subtitle:"Atomically update the database and publish a message by writing to an outbox table in the same transaction. A message relay process reads the outbox and publishes to the message broker.",
+  url:"https://microservices.io/patterns/data/transactional-outbox.html",
+  img:"https://microservices.io/i/TransactionalOutbox.png",
+  imgCaption:"Transactional Outbox — write DB and outbox in one transaction, relay publishes asynchronously",
+  content:`<div class="sh">The Dual Write Problem</div>
+  <div class="callout danger"><span class="callout-ico">🚫</span><span class="callout-txt"><strong>Never do this:</strong> Update the database, then publish to Kafka. If the service crashes between the two operations, the DB is updated but the event is never published — data inconsistency.</span></div>
+  <div class="sh">The Outbox Solution</div>
+  <div class="dbox" style="flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="db blue">Service</div>
+      <div class="darr">single TX →</div>
+      <div class="dcol">
+        <div class="db green" style="font-size:10px">Business Table<br><span style="opacity:.6">UPDATE orders SET...</span></div>
+        <div class="db teal" style="font-size:10px">Outbox Table<br><span style="opacity:.6">INSERT INTO outbox...</span></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="db amber">Message Relay<br><span style="font-size:9px;opacity:.6">reads outbox</span></div>
+      <div class="darr">→</div>
+      <div class="db purple">Message Broker<br><span style="font-size:9px;opacity:.6">Kafka / RabbitMQ</span></div>
+    </div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Atomicity guaranteed — DB update and outbox write in single transaction</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>At-least-once delivery — relay retries until broker acknowledges</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Consumers must be idempotent to handle duplicate deliveries</span></div>
+  </div>`
+},
+"log-tailing":{
+  tag:"Transactional Messaging · Pattern 18",
+  title:"Transaction Log Tailing",
+  subtitle:"Publish messages to the message broker by tailing the database transaction log. The log is the source of truth for all committed transactions.",
+  url:"https://microservices.io/patterns/data/transaction-log-tailing.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox">
+    <div class="db green">Database<br><span style="font-size:9px;opacity:.6">commits transaction</span></div>
+    <div class="darr">→</div>
+    <div class="db blue">Transaction Log<br><span style="font-size:9px;opacity:.6">WAL / binlog / oplog</span></div>
+    <div class="darr">→</div>
+    <div class="db cyan">Log Tailer<br><span style="font-size:9px;opacity:.6">Debezium / Maxwell</span></div>
+    <div class="darr">→</div>
+    <div class="db amber">Message Broker</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>PostgreSQL: WAL (Write-Ahead Log) with logical replication</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>MySQL: binlog tailing</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>MongoDB: oplog tailing</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Tool: Debezium (CDC platform) — widely used in production</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>No application code changes needed — works at infrastructure level</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Low-level DB-specific, requires expertise to operate reliably</span></div>
+  </div>`
+},
+"polling-publisher":{
+  tag:"Transactional Messaging · Pattern 19",
+  title:"Polling Publisher",
+  subtitle:"Publish messages by polling a database outbox table for unpublished messages. Simpler alternative to transaction log tailing.",
+  url:"https://microservices.io/patterns/data/polling-publisher.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox">
+    <div class="db blue">Message Publisher<br><span style="font-size:9px;opacity:.6">polls every N seconds</span></div>
+    <div class="darr">→ SELECT unsent</div>
+    <div class="db green">Outbox Table</div>
+    <div class="darr">→ publish</div>
+    <div class="db amber">Message Broker</div>
+  </div>
+  <div class="code">SELECT * FROM outbox WHERE published = false ORDER BY id LIMIT 100;
+<span class="cm">-- publish each row to Kafka --</span>
+UPDATE outbox SET published = true WHERE id IN (...)</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Simple — no specialised CDC tooling required</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Works with any relational database</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Polling adds latency — not suitable for high-throughput real-time events</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Database load from constant polling queries</span></div>
+  </div>`
+},
+"consumer-contract":{
+  tag:"Testing · Pattern 20",
+  title:"Consumer-driven Contract Test",
+  subtitle:"A test suite written by the consumer of a service that verifies the service meets the consumer's expectations. Run by the provider to ensure backward compatibility.",
+  url:"https://microservices.io/patterns/testing/service-integration-contract-test.html",
+  content:`<div class="sh">The Problem</div>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt">When Service A consumes Service B's API, how does Service B know if its changes break Service A? Integration tests in a shared environment are slow and brittle.</span></div>
+  <div class="sh">How Consumer-driven Contracts Work</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span>Consumer writes a contract: "I call /orders/{id} and expect this response shape"</span></div>
+    <div class="bul"><div class="bi blue">2</div><span>Contract is shared with the provider (via Pact Broker, git, etc.)</span></div>
+    <div class="bul"><div class="bi blue">3</div><span>Provider runs the contract as a test in its CI pipeline</span></div>
+    <div class="bul"><div class="bi blue">4</div><span>If provider's changes break the contract, CI fails — before deployment</span></div>
+  </div>
+  <div class="callout success"><span class="callout-ico">✅</span><span class="callout-txt">Tools: <strong>Pact</strong> is the standard for consumer-driven contract testing. Spring Cloud Contract is popular in the Java ecosystem.</span></div>`
+},
+"consumer-side":{
+  tag:"Testing · Pattern 21",
+  title:"Consumer-side Contract Test",
+  subtitle:"A test suite for a service client that verifies it can communicate correctly with the service. Tests the client code, not the service itself.",
+  url:"https://microservices.io/patterns/testing/consumer-side-contract-test.html",
+  content:`<div class="sh">Difference from Consumer-driven Contract Tests</div>
+  <table class="tbl"><thead><tr><th></th><th>Consumer-driven Contract</th><th>Consumer-side Contract</th></tr></thead><tbody>
+    <tr><td>Who writes it</td><td>Consumer team</td><td>Consumer team</td></tr>
+    <tr><td>Who runs it</td><td>Provider (in CI)</td><td>Consumer (in CI)</td></tr>
+    <tr><td>What it tests</td><td>Provider meets consumer's expectations</td><td>Consumer can talk to provider correctly</td></tr>
+    <tr><td>Uses</td><td>Pact broker, shared contract</td><td>Mock/stub of provider</td></tr>
+  </tbody></table>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Consumer tests run against a stub/mock of the provider</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Tests verify the consumer can serialize/deserialize the expected API shapes</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Fast and isolated — no need to deploy the real provider service</span></div>
+  </div>`
+},
+"service-component":{
+  tag:"Testing · Pattern 22",
+  title:"Service Component Test",
+  subtitle:"Test a service in isolation by replacing its dependencies (databases, brokers, other services) with test doubles. Faster and more reliable than full integration tests.",
+  url:"https://microservices.io/patterns/testing/service-component-test.html",
+  content:`<div class="sh">Test Pyramid Position</div>
+  <div class="dbox" style="flex-direction:column;gap:8px;align-items:center">
+    <div class="db red" style="min-width:60px">E2E Tests (few)</div>
+    <div class="db amber" style="min-width:120px">Service Component Tests</div>
+    <div class="db green" style="min-width:180px">Unit Tests (many)</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Tests the service's behaviour in isolation — no real external dependencies</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Fast, stable, parallelisable — not affected by other teams' service changes</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Use WireMock, Mockito, Testcontainers to replace external services and databases</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Test at the HTTP/messaging level, not just unit level — validates full service behaviour</span></div>
+  </div>`
+},
+"multi-per-host":{
+  tag:"Deployment · Pattern 23",
+  title:"Multiple Instances per Host",
+  subtitle:"Deploy multiple service instances on a single host (VM or physical). Maximises resource utilisation but requires careful isolation to prevent contention.",
+  url:"https://microservices.io/patterns/deployment/multiple-services-per-host.html",
+  content:`<div class="sh">Trade-offs</div>
+  <table class="tbl"><thead><tr><th>Benefit</th><th>Risk</th></tr></thead><tbody>
+    <tr><td>Low cost — maximises host utilisation</td><td>Resource contention between services</td></tr>
+    <tr><td>Fast deployment — no new VM spin-up</td><td>One buggy service can starve others</td></tr>
+    <tr><td>Simple for small teams or dev environments</td><td>Dependency conflicts (e.g. different JVM versions)</td></tr>
+  </tbody></table>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">This pattern is rarely used in production today. Service Instance per Container is the modern standard — it provides isolation at low cost via containers.</span></div>`
+},
+"instance-per-host":{
+  tag:"Deployment · Pattern 24",
+  title:"Service Instance per Host",
+  subtitle:"Deploy each service instance on its own dedicated host. Maximum isolation — one service per physical server or VM.",
+  url:"https://microservices.io/patterns/deployment/single-service-per-host.html",
+  content:`<div class="sh">Characteristics</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Complete isolation — no resource contention, no dependency conflicts</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Easy to monitor — each host metrics map 1:1 to one service</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>High cost — dedicated hosts are expensive and underutilised</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Slow to provision — VM start-up takes minutes</span></div>
+  </div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">Superseded by Service Instance per Container for most use cases. Containers give the same isolation at a fraction of the cost and in seconds rather than minutes.</span></div>`
+},
+"instance-per-vm":{
+  tag:"Deployment · Pattern 25",
+  title:"Service Instance per VM",
+  subtitle:"Package each service as a VM image and deploy each instance as a separate virtual machine. Popularised by Netflix with their Aminator tool.",
+  url:"https://microservices.io/patterns/deployment/service-per-vm.html",
+  content:`<div class="sh">Characteristics</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Well-understood and mature — leverage existing VM tooling (AWS AMI, etc.)</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Strong isolation via hypervisor — true process and resource separation</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>VM images are large and slow to build (minutes vs seconds for containers)</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>VMs are heavyweight — entire OS per service instance</span></div>
+  </div>
+  <p style="color:var(--muted);font-size:13px;margin-top:10px">Largely replaced by containers in modern deployments, though still used in environments with strict security or compliance requirements.</p>`
+},
+"instance-per-container":{
+  tag:"Deployment · Pattern 26",
+  title:"Service Instance per Container",
+  subtitle:"Package each service as a container image and deploy each instance as a separate container. The de-facto standard for microservices deployment using Docker and Kubernetes.",
+  url:"https://microservices.io/patterns/deployment/service-per-container.html",
+  content:`<div class="sh">Container Deployment Stack</div>
+  <div class="card-grid">
+    <div class="card blue"><div class="card-cat blue">Build</div><div class="card-title">Docker Image</div><div class="card-body">Immutable, portable artifact. Dockerfile declares all dependencies. One image per service version.</div></div>
+    <div class="card green"><div class="card-cat green">Orchestrate</div><div class="card-title">Kubernetes</div><div class="card-body">Scheduling, autoscaling (HPA), self-healing, service discovery via CoreDNS, ConfigMaps, Secrets.</div></div>
+    <div class="card amber"><div class="card-cat amber">Package</div><div class="card-title">Helm Charts</div><div class="card-body">Parameterised K8s manifests. Deploy to dev, staging, prod with different values files.</div></div>
+    <div class="card purple"><div class="card-cat purple">GitOps</div><div class="card-title">ArgoCD</div><div class="card-body">Git is the source of truth. Every deployment is a git commit — full audit trail and rollback.</div></div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Fast — container starts in seconds vs minutes for VMs</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Lightweight — shares host OS kernel, no full OS per container</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Consistent environments — same image in dev, CI, production</span></div>
+  </div>`
+},
+"serverless":{
+  tag:"Deployment · Pattern 27",
+  title:"Serverless Deployment",
+  subtitle:"Deploy services as serverless functions (AWS Lambda, Azure Functions, Google Cloud Functions). No server management — pay only for compute used.",
+  url:"https://microservices.io/patterns/deployment/serverless-deployment.html",
+  content:`<div class="sh">Characteristics</div>
+  <table class="tbl"><thead><tr><th>Benefit</th><th>Limitation</th></tr></thead><tbody>
+    <tr><td>Zero infrastructure management</td><td>Cold start latency (ms to seconds)</td></tr>
+    <tr><td>Auto-scale to zero — no idle cost</td><td>Stateless only — no local state between invocations</td></tr>
+    <tr><td>Pay per invocation</td><td>Execution time limits (max 15 min for Lambda)</td></tr>
+    <tr><td>Built-in HA and fault tolerance</td><td>Vendor lock-in to cloud platform</td></tr>
+  </tbody></table>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">Best for event-driven, intermittent workloads (e.g. image processing, scheduled jobs, webhooks). Less suited for latency-sensitive, high-throughput services running continuously.</span></div>`
+},
+"deploy-platform":{
+  tag:"Deployment · Pattern 28",
+  title:"Service Deployment Platform",
+  subtitle:"Use a highly automated platform that provides deployment, scaling, and service management as an abstraction layer. Examples: Kubernetes, AWS ECS, Heroku.",
+  url:"https://microservices.io/patterns/deployment/service-deployment-platform.html",
+  content:`<div class="sh">Key Capabilities</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Automated provisioning — services are deployed via config, not manual steps</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Service-level abstraction — deploy "a service", not individual VMs</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Built-in service discovery, load balancing, health checking</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Self-healing — restart failed instances automatically</span></div>
+  </div>`
+},
+"chassis":{
+  tag:"Cross-cutting · Pattern 29",
+  title:"Microservice Chassis",
+  subtitle:"A framework that handles cross-cutting concerns (logging, tracing, health checks, metrics, externalised config) so each service doesn't have to implement them from scratch.",
+  url:"https://microservices.io/patterns/microservice-chassis.html",
+  img:"https://microservices.io/i/patterns/microservice-template-and-chassis/Microservice_chassis.png",
+  imgCaption:"Microservice chassis — shared framework handling cross-cutting concerns",
+  content:`<div class="sh">What a Chassis Handles</div>
+  <div class="card-grid">
+    <div class="card blue"><div class="card-cat blue">Concern</div><div class="card-title">Logging</div><div class="card-body">Structured JSON logging with automatic trace ID injection. Centralised log configuration.</div></div>
+    <div class="card green"><div class="card-cat green">Concern</div><div class="card-title">Distributed Tracing</div><div class="card-body">Auto-propagate trace context headers. Instrument service boundaries automatically.</div></div>
+    <div class="card amber"><div class="card-cat amber">Concern</div><div class="card-title">Health Checks</div><div class="card-body">Standard /health endpoint with DB, cache, and dependency checks built in.</div></div>
+    <div class="card purple"><div class="card-cat purple">Concern</div><div class="card-title">Metrics</div><div class="card-body">Auto-expose Prometheus metrics for HTTP requests, JVM, database connection pools.</div></div>
+  </div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">Java examples: Spring Boot with Spring Actuator + Micrometer + Sleuth. Go: use a shared internal library. This is often combined with the Service Template pattern.</span></div>`
+},
+"ext-config":{
+  tag:"Cross-cutting · Pattern 30",
+  title:"Externalized Configuration",
+  subtitle:"Externalize all configuration (database URLs, credentials, feature flags, service URLs) outside the service code. Services read config from environment or config server at startup.",
+  url:"https://microservices.io/patterns/externalized-configuration.html",
+  content:`<div class="sh">The 12-Factor Principle</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">From the 12-factor app methodology: "Store config in the environment." Config is everything that varies between deployment environments (dev, staging, production) — never hardcode it.</p>
+  <div class="code"><span class="cm"># WRONG — hardcoded in code</span>
+db_url = <span class="str">"jdbc:postgresql://prod-db:5432/orders"</span>
+
+<span class="cm"># RIGHT — environment variable</span>
+db_url = os.getenv(<span class="str">"DATABASE_URL"</span>)
+
+<span class="cm"># Kubernetes: inject via ConfigMap and Secret</span>
+env:
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: db-credentials
+        key: url</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Environment variables (12-factor standard)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Config server (Spring Cloud Config Server, Consul, AWS Parameter Store)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Kubernetes ConfigMaps (non-sensitive) and Secrets (sensitive)</span></div>
+  </div>`
+},
+"service-template":{
+  tag:"Cross-cutting · Pattern 31",
+  title:"Service Template",
+  subtitle:"A template project that implements all standard cross-cutting concerns. Developers copy it to quickly start a new service with logging, tracing, health checks and tests already set up.",
+  url:"https://microservices.io/patterns/service-template.html",
+  content:`<div class="sh">What a Template Contains</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>CI/CD pipeline configuration (GitHub Actions, Jenkins, GitLab CI)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Docker and Kubernetes deployment manifests</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Chassis framework wired up (logging, tracing, metrics, health checks)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Testing infrastructure (unit, component, contract test scaffolding)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Security defaults (HTTPS, auth middleware pre-configured)</span></div>
+  </div>
+  <div class="callout success"><span class="callout-ico">✅</span><span class="callout-txt">A new service should take minutes to scaffold, not days. The template handles all infrastructure concerns so developers focus only on business logic from day one.</span></div>`
+},
+"rpi":{
+  tag:"Communication · Pattern 32",
+  title:"Remote Procedure Invocation (RPI)",
+  subtitle:"Use a synchronous RPI-based protocol for inter-service communication. The client sends a request and waits for a response. Examples: REST/HTTP, gRPC.",
+  url:"https://microservices.io/patterns/communication-style/rpi.html",
+  content:`<div class="sh">RPI Technologies</div>
+  <table class="tbl"><thead><tr><th>Technology</th><th>Best For</th><th>Key Features</th></tr></thead><tbody>
+    <tr><td><span class="tag blue">REST/HTTP</span></td><td>External APIs, broad compatibility</td><td>Simple, stateless, wide tooling support</td></tr>
+    <tr><td><span class="tag green">gRPC</span></td><td>High-throughput internal calls</td><td>Binary, typed contracts, streaming, 3–10× faster</td></tr>
+    <tr><td><span class="tag amber">GraphQL</span></td><td>Flexible client queries</td><td>Client specifies exact data needed, reduces over-fetching</td></tr>
+    <tr><td><span class="tag purple">Apache Thrift</span></td><td>Cross-language at scale</td><td>Efficient binary, code generation for many languages</td></tr>
+  </tbody></table>
+  <div class="callout warn"><span class="callout-ico">⚠️</span><span class="callout-txt">RPI creates temporal coupling — the calling service is unavailable if the called service is unavailable. Always add Circuit Breakers, timeouts, and retries to every RPI call.</span></div>`
+},
+"messaging":{
+  tag:"Communication · Pattern 33",
+  title:"Messaging",
+  subtitle:"Use asynchronous messaging for inter-service communication. The sender publishes a message to a channel. The receiver processes it at its own pace. No direct coupling.",
+  url:"https://microservices.io/patterns/communication-style/messaging.html",
+  content:`<div class="sh">Message Channels</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span><strong>Point-to-point:</strong> One message, one consumer. Used for commands (e.g. "ProcessPayment").</span></div>
+    <div class="bul"><div class="bi blue">→</div><span><strong>Publish-subscribe:</strong> One message, many consumers. Used for events (e.g. "OrderPlaced").</span></div>
+  </div>
+  <div class="sh">Message Brokers</div>
+  <table class="tbl"><thead><tr><th>Broker</th><th>Model</th><th>Best For</th></tr></thead><tbody>
+    <tr><td><span class="tag blue">Apache Kafka</span></td><td>Durable log, topic partitions</td><td>High throughput, event streaming, replay</td></tr>
+    <tr><td><span class="tag green">RabbitMQ</span></td><td>Exchange + queue routing</td><td>Flexible routing, lower latency</td></tr>
+    <tr><td><span class="tag amber">AWS SQS/SNS</span></td><td>Managed queue/fan-out</td><td>AWS-native, serverless, low ops overhead</td></tr>
+    <tr><td><span class="tag purple">Redis Streams</span></td><td>In-memory log</td><td>Low latency, simpler ops than Kafka</td></tr>
+  </tbody></table>`
+},
+"domain-specific":{
+  tag:"Communication · Pattern 34",
+  title:"Domain-specific Protocol",
+  subtitle:"Use a domain-specific communication protocol for inter-service communication. For example, SMTP for email services, SIP for telephony, IMAP for mail retrieval.",
+  url:"https://microservices.io/patterns/communication-style/domain-specific.html",
+  content:`<div class="sh">When to Use</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>When the service wraps an existing system that uses a domain-specific protocol</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>When the protocol's capabilities (e.g. SMTP for email) are essential to the service's function</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Not a general-purpose communication pattern — use REST or messaging for most services</span></div>
+  </div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">Examples: Email service uses SMTP/IMAP. Payment service may use ISO 8583 (financial transactions). Telephony service uses SIP. The service adapts the protocol behind a standard API.</span></div>`
+},
+"idempotent-consumer":{
+  tag:"Communication · Pattern 35",
+  title:"Idempotent Consumer",
+  subtitle:"Ensure that message consumers can be invoked multiple times with the same message and produce the same result. Essential when using at-least-once message delivery.",
+  url:"https://microservices.io/patterns/communication-style/idempotent-consumer.html",
+  content:`<div class="sh">Why It's Essential</div>
+  <div class="callout danger"><span class="callout-ico">🚫</span><span class="callout-txt">Message brokers provide at-least-once delivery — the same message may arrive twice due to retries or failures. If your consumer creates a record on each delivery, you'll get duplicates.</span></div>
+  <div class="sh">Implementation Approaches</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span><strong>Message ID deduplication table:</strong> Store processed message IDs. Check before processing — skip if already seen.</span></div>
+    <div class="bul"><div class="bi blue">2</div><span><strong>Idempotent operations:</strong> Design operations so repeating them has no additional effect (e.g. SET instead of INCREMENT).</span></div>
+    <div class="bul"><div class="bi blue">3</div><span><strong>Conditional updates:</strong> Use database constraints or optimistic locking to prevent duplicate writes.</span></div>
+  </div>
+  <div class="code"><span class="cm">-- Deduplication table approach</span>
+INSERT INTO processed_messages (message_id, processed_at)
+VALUES (<span class="str">'msg-abc123'</span>, NOW())
+ON CONFLICT (message_id) DO NOTHING;
+
+<span class="cm">-- If 0 rows inserted, message was already processed — skip</span></div>`
+},
+"api-gateway":{
+  tag:"External API · Pattern 36",
+  title:"API Gateway",
+  subtitle:"A service that provides each client with a unified interface to the backend microservices. Single entry point — handles routing, aggregation, authentication, and rate limiting.",
+  url:"https://microservices.io/patterns/apigateway.html",
+  img:"https://microservices.io/i/apigateway.jpg",
+  imgCaption:"API Gateway — single entry point routing requests to multiple backend services",
+  content:`<div class="sh">Responsibilities</div>
+  <div class="card-grid">
+    <div class="card blue"><div class="card-cat blue">Core</div><div class="card-title">Request Routing</div><div class="card-body">Route /api/orders to Order Service, /api/users to User Service. Hides internal topology from clients.</div></div>
+    <div class="card green"><div class="card-cat green">Core</div><div class="card-title">Authentication</div><div class="card-body">Validate JWT tokens at the edge. Pass verified identity to downstream services as a trusted header.</div></div>
+    <div class="card amber"><div class="card-cat amber">Core</div><div class="card-title">Rate Limiting</div><div class="card-body">Throttle requests per client/API key. Protect downstream services from traffic spikes.</div></div>
+    <div class="card purple"><div class="card-cat purple">Core</div><div class="card-title">Aggregation</div><div class="card-body">Fan out to multiple services, combine responses into one — reduces client round-trips from N to 1.</div></div>
+  </div>
+  <div class="sh">Tools</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">
+    <span class="tag blue">Kong</span><span class="tag green">AWS API Gateway</span><span class="tag amber">NGINX</span><span class="tag purple">Traefik</span><span class="tag cyan">Spring Cloud Gateway</span><span class="tag red">Envoy</span>
+  </div>`
+},
+"bff":{
+  tag:"External API · Pattern 37",
+  title:"Backend for Frontend (BFF)",
+  subtitle:"A variation of API Gateway — define a separate backend gateway for each type of client (mobile app, web app, third-party API). Each BFF is optimised for its specific client's needs.",
+  url:"https://microservices.io/patterns/apigateway.html",
+  img:"https://microservices.io/i/bffe.png",
+  imgCaption:"Backend for Frontend (BFF) — separate gateway per client type",
+  content:`<div class="sh">Why One Size Doesn't Fit All</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Mobile clients need fewer fields (to save bandwidth) — BFF filters data</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Web app needs aggregated data from multiple services in one call</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>3rd-party API needs stable, versioned, public-facing contract</span></div>
+  </div>
+  <div class="sh">Benefits</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Each client's team owns their BFF — independent development and deployment</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>No compromises — each BFF is precisely shaped for its client</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Known use: Netflix deploys client-specific adapter code per device platform</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>More services to maintain — n client types = n BFFs</span></div>
+  </div>`
+},
+"client-discovery":{
+  tag:"Service Discovery · Pattern 38",
+  title:"Client-side Discovery",
+  subtitle:"The client queries a service registry to find available instances of a service, then uses a load-balancing algorithm to select one and send the request.",
+  url:"https://microservices.io/patterns/client-side-discovery.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox">
+    <div class="db blue">Service Client</div>
+    <div class="darr">1. query</div>
+    <div class="db green">Service Registry<br><span style="font-size:9px;opacity:.6">Eureka / Consul</span></div>
+    <div class="darr">2. list of instances</div>
+    <div class="db blue">Service Client</div>
+    <div class="darr">3. call</div>
+    <div class="db amber">Service Instance</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Client has full control over load balancing algorithm (round-robin, least connections, etc.)</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Every client must implement registry querying — couples client to registry technology</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Example: Netflix Ribbon (client-side load balancer) + Eureka (registry)</span></div>
+  </div>`
+},
+"server-discovery":{
+  tag:"Service Discovery · Pattern 39",
+  title:"Server-side Discovery",
+  subtitle:"The client makes a request to a router/load balancer, which queries the service registry and forwards the request to an available instance. The client is unaware of service discovery.",
+  url:"https://microservices.io/patterns/server-side-discovery.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox">
+    <div class="db blue">Client</div>
+    <div class="darr">→ request</div>
+    <div class="db green">Load Balancer / Router<br><span style="font-size:9px;opacity:.6">queries registry</span></div>
+    <div class="darr">→ forward</div>
+    <div class="db amber">Service Instance</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Client is simple — just sends request to a known endpoint</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Discovery logic centralised in the router — one place to update</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Kubernetes: built-in server-side discovery via kube-proxy + CoreDNS</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>AWS: Elastic Load Balancer + ECS service discovery</span></div>
+  </div>`
+},
+"service-registry":{
+  tag:"Service Discovery · Pattern 40",
+  title:"Service Registry",
+  subtitle:"A database of service instance network locations (host, port). Services register when they start and deregister when they stop. Clients query it to find available instances.",
+  url:"https://microservices.io/patterns/service-registry.html",
+  content:`<div class="sh">Key Requirements</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Highly available — if registry is down, service discovery fails for the whole system</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Consistent — registry must reflect actual running instances accurately</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Integrated health checks — automatically remove unhealthy instances</span></div>
+  </div>
+  <div class="sh">Tools</div>
+  <table class="tbl"><thead><tr><th>Tool</th><th>Notes</th></tr></thead><tbody>
+    <tr><td><span class="tag blue">Netflix Eureka</span></td><td>AP (available + partition-tolerant), Java-native, Spring Cloud integration</td></tr>
+    <tr><td><span class="tag green">HashiCorp Consul</span></td><td>CP, service mesh, health checks, KV store. Multi-datacenter support.</td></tr>
+    <tr><td><span class="tag amber">Apache Zookeeper</span></td><td>CP, distributed coordination. Lower-level — used as registry backend by others.</td></tr>
+    <tr><td><span class="tag purple">K8s etcd + CoreDNS</span></td><td>Built-in to Kubernetes — DNS-based service discovery for services in the cluster.</td></tr>
+  </tbody></table>`
+},
+"self-registration":{
+  tag:"Service Discovery · Pattern 41",
+  title:"Self Registration",
+  subtitle:"A service instance registers itself with the service registry on startup and deregisters on shutdown. The service is responsible for its own registration.",
+  url:"https://microservices.io/patterns/self-registration.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">1</div><span>Service starts up and sends registration request to registry (host, port, health URL)</span></div>
+    <div class="bul"><div class="bi blue">2</div><span>Service sends periodic heartbeats to renew its registration</span></div>
+    <div class="bul"><div class="bi blue">3</div><span>Service deregisters itself on graceful shutdown</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Registry expires registrations if heartbeats stop — handles crash without deregistration</span></div>
+  </div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">Spring Cloud Netflix: <code>@EnableEurekaClient</code> handles self-registration automatically. The app just needs the Eureka Server URL in its config.</span></div>`
+},
+"3rd-party-reg":{
+  tag:"Service Discovery · Pattern 42",
+  title:"3rd Party Registration",
+  subtitle:"A third-party registrar (not the service itself) is responsible for registering and deregistering service instances. The service has no registration code.",
+  url:"https://microservices.io/patterns/3rd-party-registration.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox">
+    <div class="db amber">Deployment Platform<br><span style="font-size:9px;opacity:.6">K8s / ECS / Consul-agent</span></div>
+    <div class="darr">watches events</div>
+    <div class="db blue">Service Starts/Stops</div>
+    <div class="darr">→ registers/deregisters</div>
+    <div class="db green">Service Registry</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Services are decoupled from registry technology — no registry code in service</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Works with any language — the registrar is infrastructure, not application code</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Kubernetes: built-in 3rd-party registration via the control plane</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Docker Swarm: built-in registration for swarm services</span></div>
+  </div>`
+},
+"circuit-breaker":{
+  tag:"Reliability · Pattern 43",
+  title:"Circuit Breaker",
+  subtitle:"Invoke a remote service via a proxy that fails immediately when the failure rate of remote calls exceeds a threshold. Prevents cascading failures from propagating across services.",
+  url:"https://microservices.io/patterns/reliability/circuit-breaker.html",
+  content:`<div class="sh">States</div>
+  <div class="dbox">
+    <div class="db green" style="padding:14px 18px">CLOSED<br><span style="font-size:9px;opacity:.7">Requests flow normally</span></div>
+    <div class="dcol" style="gap:4px;font-size:10px;font-family:monospace;color:var(--muted);text-align:center">
+      <div>→ failures &gt; threshold</div>
+      <div>← success detected</div>
+    </div>
+    <div class="db red" style="padding:14px 18px">OPEN<br><span style="font-size:9px;opacity:.7">Fail fast immediately</span></div>
+    <div class="dcol" style="gap:4px;font-size:10px;font-family:monospace;color:var(--muted);text-align:center">
+      <div>→ after timeout</div>
+    </div>
+    <div class="db amber" style="padding:14px 18px">HALF-OPEN<br><span style="font-size:9px;opacity:.7">Test 1 request</span></div>
+  </div>
+  <div class="sh">Implementation</div>
+  <div class="code"><span class="cm">// Resilience4j — Spring Boot</span>
+@<span class="cls">CircuitBreaker</span>(name=<span class="str">"inventoryService"</span>, fallbackMethod=<span class="str">"fallback"</span>)
+<span class="kw">public</span> StockResponse checkStock(String productId) {
+    <span class="kw">return</span> inventoryClient.getStock(productId);
+}
+<span class="kw">private</span> StockResponse fallback(String productId, Exception e) {
+    <span class="kw">return</span> StockResponse.unknown(productId); <span class="cm">// safe default</span>
+}</div>
+  <div class="callout success"><span class="callout-ico">✅</span><span class="callout-txt">Libraries: <strong>Resilience4j</strong> (Java), <strong>Polly</strong> (.NET), <strong>Hystrix</strong> (deprecated but widely documented), <strong>Envoy / Istio</strong> (mesh-level, no code needed).</span></div>`
+},
+"access-token":{
+  tag:"Security · Pattern 44",
+  title:"Access Token",
+  subtitle:"Use a token (e.g. JWT) to securely convey the identity of the requestor between services. The API gateway authenticates the user and passes the token to downstream services.",
+  url:"https://microservices.io/patterns/security/access-token.html",
+  content:`<div class="sh">JWT Flow</div>
+  <div class="dbox" style="flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="db blue">Client</div>
+      <div class="darr">1. login</div>
+      <div class="db green">Auth Service</div>
+      <div class="darr">2. JWT token</div>
+      <div class="db blue">Client</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="db blue">Client</div>
+      <div class="darr">3. request + JWT</div>
+      <div class="db amber">API Gateway<br><span style="font-size:9px;opacity:.6">validates JWT</span></div>
+      <div class="darr">4. forward + JWT</div>
+      <div class="db purple">Downstream<br>Service</div>
+    </div>
+  </div>
+  <div class="code"><span class="cm">// JWT payload — self-contained identity</span>
+{
+  <span class="str">"sub"</span>:    <span class="str">"user-123"</span>,
+  <span class="str">"roles"</span>: [<span class="str">"customer"</span>],
+  <span class="str">"email"</span>: <span class="str">"alice@example.com"</span>,
+  <span class="str">"exp"</span>:   <span class="num">1737000000</span>
+}</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Stateless — downstream services verify token signature without calling auth service</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Self-contained — carries user identity, roles, and claims</span></div>
+    <div class="bul"><div class="bi amber">!</div><span>Short expiry times (15 min) with refresh tokens — reduce revocation window</span></div>
+  </div>`
+},
+"log-agg":{
+  tag:"Observability · Pattern 45",
+  title:"Log Aggregation",
+  subtitle:"Aggregate and centralise logs from all service instances into a single searchable store. Essential for debugging distributed systems where logs are spread across many hosts.",
+  url:"https://microservices.io/patterns/observability/application-logging.html",
+  content:`<div class="sh">Architecture</div>
+  <div class="dbox">
+    <div class="dcol">
+      <div class="db blue" style="font-size:10px">Service A logs</div>
+      <div class="db green" style="font-size:10px">Service B logs</div>
+      <div class="db amber" style="font-size:10px">Service C logs</div>
+    </div>
+    <div class="darr">→</div>
+    <div class="db cyan">Log Aggregator<br><span style="font-size:9px;opacity:.6">Fluentd / Logstash</span></div>
+    <div class="darr">→</div>
+    <div class="db purple">Centralised Store<br><span style="font-size:9px;opacity:.6">Elasticsearch / Loki</span></div>
+    <div class="darr">→</div>
+    <div class="db teal">Dashboard<br><span style="font-size:9px;opacity:.6">Kibana / Grafana</span></div>
+  </div>
+  <div class="code"><span class="cm">// Always structured JSON — never plain text</span>
+{
+  <span class="str">"timestamp"</span>: <span class="str">"2025-01-15T10:23:45.123Z"</span>,
+  <span class="str">"level"</span>:     <span class="str">"ERROR"</span>,
+  <span class="str">"service"</span>:   <span class="str">"order-service"</span>,
+  <span class="str">"trace_id"</span>:  <span class="str">"4bf92f3577b34da6"</span>,
+  <span class="str">"message"</span>:  <span class="str">"Payment service timeout"</span>,
+  <span class="str">"order_id"</span>: <span class="str">"ord-789"</span>
+}</div>`
+},
+"app-metrics":{
+  tag:"Observability · Pattern 46",
+  title:"Application Metrics",
+  subtitle:"Instrument service code to gather statistics about operations — request rates, error rates, latency histograms. Expose them for collection and alerting.",
+  url:"https://microservices.io/patterns/observability/application-metrics.html",
+  content:`<div class="sh">The RED Method</div>
+  <table class="tbl"><thead><tr><th>Metric</th><th>What It Measures</th><th>Alert Condition</th></tr></thead><tbody>
+    <tr><td><span class="tag blue">Rate</span></td><td>Requests per second per service endpoint</td><td>Sudden drop may indicate upstream outage</td></tr>
+    <tr><td><span class="tag red">Errors</span></td><td>% of requests returning 4xx or 5xx</td><td>Error rate > 1% sustained over 5 min</td></tr>
+    <tr><td><span class="tag amber">Duration</span></td><td>Latency histogram (P50, P95, P99)</td><td>P99 latency exceeds SLO threshold</td></tr>
+  </tbody></table>
+  <div class="sh">Stack</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">
+    <span class="tag blue">Prometheus (scrape)</span>
+    <span class="tag green">Grafana (dashboards)</span>
+    <span class="tag amber">Micrometer (Java instrumentation)</span>
+    <span class="tag purple">Datadog (SaaS)</span>
+    <span class="tag cyan">AWS CloudWatch</span>
+  </div>`
+},
+"audit-log":{
+  tag:"Observability · Pattern 47",
+  title:"Audit Logging",
+  subtitle:"Record user activity in a database — who did what, when, and from where. Required for compliance, security investigations, and debugging user-reported issues.",
+  url:"https://microservices.io/patterns/observability/audit-logging.html",
+  content:`<div class="sh">What to Capture</div>
+  <div class="code">{
+  <span class="str">"eventId"</span>:    <span class="str">"audit-abc"</span>,
+  <span class="str">"timestamp"</span>:  <span class="str">"2025-01-15T10:23:45Z"</span>,
+  <span class="str">"userId"</span>:     <span class="str">"user-123"</span>,
+  <span class="str">"action"</span>:     <span class="str">"DELETE_ORDER"</span>,
+  <span class="str">"resource"</span>:   <span class="str">"order/ord-789"</span>,
+  <span class="str">"ipAddress"</span>:  <span class="str">"203.0.113.42"</span>,
+  <span class="str">"outcome"</span>:    <span class="str">"SUCCESS"</span>,
+  <span class="str">"service"</span>:    <span class="str">"order-service"</span>
+}</div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Audit log must be append-only and tamper-evident</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Store in a separate, secure database with strict access controls</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Capture failed attempts as well as successful operations</span></div>
+  </div>`
+},
+"dist-tracing":{
+  tag:"Observability · Pattern 48",
+  title:"Distributed Tracing",
+  subtitle:"Assign each external request a unique trace ID that is propagated across all services. Record timing and metadata for each service hop to reconstruct the full request journey.",
+  url:"https://microservices.io/patterns/observability/distributed-tracing.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox" style="flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="db blue">API Gateway<br><span style="font-size:9px;opacity:.6">generates trace-id</span></div>
+      <div class="darr">→ trace-id header</div>
+      <div class="db green">Order Service<br><span style="font-size:9px;opacity:.6">span: 45ms</span></div>
+      <div class="darr">→ trace-id header</div>
+      <div class="db amber">Inventory Service<br><span style="font-size:9px;opacity:.6">span: 12ms</span></div>
+    </div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center">All spans collected → waterfall chart in tracing UI</div>
+  </div>
+  <div class="sh">W3C Trace Context</div>
+  <div class="code">traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01</div>
+  <div class="sh">Tools</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">
+    <span class="tag blue">Jaeger</span><span class="tag green">Zipkin</span><span class="tag amber">AWS X-Ray</span><span class="tag purple">Grafana Tempo</span><span class="tag cyan">Datadog APM</span>
+  </div>`
+},
+"exception-tracking":{
+  tag:"Observability · Pattern 49",
+  title:"Exception Tracking",
+  subtitle:"Report all exceptions to a centralized exception tracking service that aggregates, deduplicates, and notifies developers of new and recurring errors.",
+  url:"https://microservices.io/patterns/observability/exception-tracking.html",
+  content:`<div class="sh">Why Dedicated Exception Tracking</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">Exceptions buried in log files are hard to find. Dedicated exception tracking surfaces new errors immediately, groups related occurrences, and tracks resolution.</p>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span><strong>Sentry:</strong> Most popular open-source exception tracker. SDKs for all languages.</span></div>
+    <div class="bul"><div class="bi blue">→</div><span><strong>Rollbar, Airbrake:</strong> Commercial alternatives with rich grouping and workflow features.</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Group related exceptions to avoid alert fatigue</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Include breadcrumbs — request context, user ID, recent log events</span></div>
+  </div>`
+},
+"health-check":{
+  tag:"Observability · Pattern 50",
+  title:"Health Check API",
+  subtitle:"Expose a service API endpoint (e.g. HTTP /health) that returns the health of the service. Used by load balancers, Kubernetes, and monitoring systems to route traffic away from unhealthy instances.",
+  url:"https://microservices.io/patterns/observability/health-check-api.html",
+  content:`<div class="sh">Probe Types (Kubernetes)</div>
+  <table class="tbl"><thead><tr><th>Probe</th><th>Question</th><th>On Failure</th></tr></thead><tbody>
+    <tr><td><span class="tag green">Liveness</span></td><td>Is the process alive and not deadlocked?</td><td>Kubernetes restarts the pod</td></tr>
+    <tr><td><span class="tag blue">Readiness</span></td><td>Is the service ready to accept traffic?</td><td>Kubernetes removes from load balancer</td></tr>
+    <tr><td><span class="tag amber">Startup</span></td><td>Has the service finished initialising?</td><td>Kubernetes delays liveness checks</td></tr>
+  </tbody></table>
+  <div class="code">GET /actuator/health
+
+{
+  <span class="str">"status"</span>: <span class="str">"UP"</span>,
+  <span class="str">"components"</span>: {
+    <span class="str">"db"</span>:     { <span class="str">"status"</span>: <span class="str">"UP"</span> },
+    <span class="str">"redis"</span>:  { <span class="str">"status"</span>: <span class="str">"UP"</span> },
+    <span class="str">"kafka"</span>:  { <span class="str">"status"</span>: <span class="str">"DOWN"</span> }
+  }
+}</div>`
+},
+"log-deploy":{
+  tag:"Observability · Pattern 51",
+  title:"Log Deployments & Changes",
+  subtitle:"Record when deployments and configuration changes happen, so they can be correlated with metrics and logs. Deployment events are critical context for debugging incidents.",
+  url:"https://microservices.io/patterns/observability/log-deployments-and-changes.html",
+  content:`<div class="sh">Why It Matters</div>
+  <div class="callout info"><span class="callout-ico">💡</span><span class="callout-txt">When error rates spike after a deploy, you need to immediately see that a deployment happened at that exact time. Without deployment markers in your dashboards, root cause analysis is slow.</span></div>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span>Annotate Grafana dashboards with deployment events automatically from CI/CD</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Tag metrics and logs with the deployed version (image tag, git SHA)</span></div>
+    <div class="bul"><div class="bi blue">→</div><span>Tools: Grafana annotations API, Datadog Events, PagerDuty change events</span></div>
+  </div>`
+},
+"server-fragment":{
+  tag:"UI Patterns · Pattern 52",
+  title:"Server-side Page Fragment Composition",
+  subtitle:"Build a server-rendered webpage by composing HTML fragments generated by multiple, business-capability-specific web applications. Each team owns their UI fragment.",
+  url:"https://microservices.io/patterns/ui/server-side-page-fragment-composition.html",
+  content:`<div class="sh">How It Works</div>
+  <div class="dbox" style="flex-direction:column;gap:10px">
+    <div class="db blue">Page Assembler</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <div class="db green" style="font-size:10px">Header Fragment<br>(owned by Header team)</div>
+      <div class="db amber" style="font-size:10px">Product Fragment<br>(owned by Catalog team)</div>
+      <div class="db purple" style="font-size:10px">Reviews Fragment<br>(owned by Reviews team)</div>
+    </div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">assembled into one HTML page served to browser</div>
+  </div>
+  <div class="bullets">
+    <div class="bul"><div class="bi green">✓</div><span>Each team deploys their UI fragment independently</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Server-rendered — fast initial load, good for SEO</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Complex composition logic — CSS/JS conflicts between fragments</span></div>
+  </div>`
+},
+"client-ui":{
+  tag:"UI Patterns · Pattern 53",
+  title:"Client-side UI Composition",
+  subtitle:"Build the UI in the browser by composing UI components (micro-frontends) rendered by multiple, business-capability-specific frontend components. Each team owns their UI component.",
+  url:"https://microservices.io/patterns/ui/client-side-ui-composition.html",
+  content:`<div class="sh">Micro-frontends</div>
+  <p style="color:var(--muted);font-size:13.5px;line-height:1.65;margin-bottom:14px">The frontend equivalent of microservices — each team owns an independently deployable UI component. Teams choose their own frontend framework (React, Vue, Angular) for their component.</p>
+  <div class="bullets">
+    <div class="bul"><div class="bi blue">→</div><span><strong>Web Components:</strong> Framework-agnostic custom elements. Universal browser support.</span></div>
+    <div class="bul"><div class="bi blue">→</div><span><strong>Module Federation:</strong> Webpack 5 feature — load remote micro-frontend modules at runtime.</span></div>
+    <div class="bul"><div class="bi blue">→</div><span><strong>iFrames:</strong> Maximum isolation but UX limitations (no shared state, scrolling issues).</span></div>
+    <div class="bul"><div class="bi green">✓</div><span>Independent deployment per team — ship UI changes without coordinating releases</span></div>
+    <div class="bul"><div class="bi red">✗</div><span>Consistency challenges — shared design system required to prevent UI fragmentation</span></div>
+  </div>`
+}
+};
+
+// ── BUILD FLAT INDEX ────────────────────────────────────────────────
+var ALL_PATTERNS = [];
+GROUPS.forEach(function(g){ g.patterns.forEach(function(p){ ALL_PATTERNS.push(p); }); });
+var total = ALL_PATTERNS.length;
+var visited = new Set();
+var currentIdx = 0;
+
+// ── SIDEBAR ──────────────────────────────────────────────────────────
+var sidebar = document.getElementById('sidebar');
+GROUPS.forEach(function(g){
+  var sec = document.createElement('div'); sec.className='nav-group';
+  var lbl = document.createElement('div'); lbl.className='nav-group-lbl'; lbl.textContent=g.label;
+  sec.appendChild(lbl);
+  g.patterns.forEach(function(p, pi){
+    var idx = ALL_PATTERNS.indexOf(p);
+    var item = document.createElement('div');
+    item.className='nav-item'; item.id='nav-'+p.id; item.dataset.idx=idx;
+    item.innerHTML='<div class="nd" style="background:'+g.color+'22;border:1px solid '+g.color+'55" id="nd-'+p.id+'"></div><span class="nav-lbl">'+p.name+'</span>';
+    item.onclick=(function(i){ return function(){ goTo(i); }; })(idx);
+    sec.appendChild(item);
+  });
+  sidebar.appendChild(sec);
+  var div = document.createElement('div'); div.className='nav-div'; sidebar.appendChild(div);
+});
+
+// ── MAIN CONTENT ─────────────────────────────────────────────────────
+var mainEl = document.getElementById('main');
+ALL_PATTERNS.forEach(function(p,idx){
+  var c = CONTENT[p.id];
+  if(!c){ c={tag:'Pattern',title:p.name,subtitle:'Details for this pattern.',content:''}; }
+  var view = document.createElement('div');
+  view.className='pview'; view.id='pview-'+p.id;
+  var imgHtml = c.img ? '<div class="pimg-wrap"><a href="'+(c.imgLink||c.img)+'" target="_blank"><img src="'+c.img+'" alt="'+c.imgCaption+'" loading="lazy"/></a><div class="pimg-caption">'+c.imgCaption+' — <a href="'+p.url+'" target="_blank" style="color:var(--blue)">view on microservices.io ↗</a></div></div>' : '';
+  var sourceBtn = p.url ? '<a class="source-link" href="'+p.url+'" target="_blank">🔗 View on microservices.io ↗</a>' : '';
+  var prevIdx = idx > 0 ? idx-1 : -1;
+  var nextIdx = idx < ALL_PATTERNS.length-1 ? idx+1 : -1;
+  var prevBtn = prevIdx>=0 ? '<button class="nbtn" onclick="goTo('+prevIdx+')">← '+ALL_PATTERNS[prevIdx].name+'</button>' : '<button class="nbtn" disabled>← Previous</button>';
+  var nextBtn = nextIdx>=0 ? '<button class="nbtn primary" onclick="goTo('+nextIdx+')">'+ALL_PATTERNS[nextIdx].name+' →</button>' : '<button class="nbtn primary" onclick="goTo(0)">↩ Back to Start</button>';
+  view.innerHTML='<div class="ptag">'+c.tag+'</div><h1 class="ptitle">'+c.title+'</h1><p class="psub">'+c.subtitle+'</p>'+sourceBtn+imgHtml+'<div class="divider"></div>'+c.content+'<div class="nfooter">'+prevBtn+'<div class="ncenter">'+(idx+1)+' of '+total+'</div>'+nextBtn+'</div>';
+  mainEl.appendChild(view);
+});
+
+// ── NAVIGATION ───────────────────────────────────────────────────────
+function goTo(idx){
+  if(idx<0||idx>=ALL_PATTERNS.length) return;
+  // deactivate old
+  var oldP = ALL_PATTERNS[currentIdx];
+  document.getElementById('pview-'+oldP.id).classList.remove('active');
+  document.getElementById('nav-'+oldP.id).classList.remove('active');
+  document.getElementById('nav-'+oldP.id).classList.add('done');
+  // activate new
+  currentIdx=idx;
+  visited.add(idx);
+  var newP = ALL_PATTERNS[idx];
+  var view = document.getElementById('pview-'+newP.id);
+  view.classList.add('active');
+  mainEl.scrollTop=0;
+  var navItem = document.getElementById('nav-'+newP.id);
+  navItem.classList.remove('done');
+  navItem.classList.add('active');
+  navItem.scrollIntoView({behavior:'smooth',block:'nearest'});
+  // progress
+  var pct = Math.round(visited.size/total*100);
+  document.getElementById('pfill').style.width=pct+'%';
+  document.getElementById('plbl').textContent=visited.size+'/'+total;
+}
+
+function gotoById(id){
+  var idx = ALL_PATTERNS.findIndex(function(p){ return p.id===id; });
+  if(idx>=0) goTo(idx);
+}
+
+// init
+visited.add(0);
+document.getElementById('pview-'+ALL_PATTERNS[0].id).classList.add('active');
+document.getElementById('nav-'+ALL_PATTERNS[0].id).classList.add('active');
+document.getElementById('pfill').style.width=Math.round(1/total*100)+'%';
+document.getElementById('plbl').textContent='1/'+total;
+</script>
+</body>
+</html>
